@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T"
+          crossorigin="anonymous">
+    <style>
+      body { background: #f8f9fa; }
+      .logo-img { width: 120px; margin-bottom: 10px; }
+      .game-card {
+        border: 1px solid #dee2e6; border-radius: 10px;
+        padding: 12px; margin-bottom: 16px; background: #fff;
+        display: flex; gap: 14px; align-items: flex-start;
+        box-shadow: 0 2px 6px rgba(0,0,0,.06); transition: box-shadow .2s;
+      }
+      .game-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.13); }
+      .game-card img {
+        width: 90px; height: 90px; object-fit: cover;
+        border-radius: 8px; flex-shrink: 0; background: #e9ecef;
+      }
+      .game-card .no-img {
+        width: 90px; height: 90px; border-radius: 8px;
+        background: #e9ecef; display: flex; align-items: center;
+        justify-content: center; font-size: 2rem; flex-shrink: 0;
+      }
+      .game-info { flex: 1; }
+      .game-info h6 { margin-bottom: 4px; font-weight: 700; }
+      .badge-cat {
+        background: #6c757d; color: #fff;
+        padding: 2px 8px; border-radius: 20px; font-size: 0.72rem;
+      }
+      .price-tag { font-size: 1.1rem; font-weight: 800; color: #28a745; }
+      .info-card {
+        border-left: 5px solid #007bff; background: #e8f0fe;
+        border-radius: 8px; padding: 18px 22px; margin-bottom: 16px;
+      }
+      .info-card h5 { color: #007bff; margin-bottom: 12px; }
+      .info-label {
+        font-size: 0.72rem; text-transform: uppercase;
+        color: #6c757d; letter-spacing: .5px;
+      }
+      .info-value { font-weight: 700; font-size: 1rem; }
+      .chip {
+        display: inline-block; background: #e9ecef; border-radius: 20px;
+        padding: 4px 14px; font-size: 0.78rem; cursor: pointer;
+        margin: 3px 2px; border: 1px solid #ced4da; transition: background .15s;
+      }
+      .chip:hover { background: #007bff; color: #fff; border-color: #007bff; }
+      #result-count { font-size: 0.85rem; color: #6c757d; margin-bottom: 10px; }
+      #result-count span { color: #007bff; font-weight: 700; }
+    </style>
+    <script>
+      function preventFormSubmit() {
+        var forms = document.querySelectorAll('form');
+        for (var i = 0; i < forms.length; i++) {
+          forms[i].addEventListener('submit', function(e) { e.preventDefault(); });
+        }
+      }
+      window.addEventListener('load', preventFormSubmit, true);
+
+      function handleFormSubmit(formObject) {
+        setLoading(true);
+        google.script.run
+          .withSuccessHandler(handleResponse)
+          .withFailureHandler(handleError)
+          .processForm(formObject);
+        document.getElementById('search-form').reset();
+      }
+
+      function handleResponse(response) {
+        setLoading(false);
+        if (!response) { showEmpty(); return; }
+        if (response.type === 'info') { showInfo(response.data); }
+        else { showGames(response.data); }
+      }
+
+      function showInfo(info) {
+        document.getElementById('result-count').innerHTML = '';
+        if (!info) {
+          document.getElementById('search-results').innerHTML =
+            '<div class="alert alert-warning">⚠️ No se encontró la hoja "Info".</div>';
+          return;
+        }
+        document.getElementById('search-results').innerHTML =
+          '<div class="info-card">' +
+            '<h5>👤 Información del Estudiante</h5>' +
+            '<div class="row">' +
+              campo('Nombre',    info.nombre) +
+              campo('Semestre',  info.semestre) +
+              campo('Carrera',   info.carrera) +
+              campo('Matrícula', info.matricula) +
+            '</div>' +
+          '</div>';
+      }
+
+      function campo(label, value) {
+        return '<div class="col-6 col-md-3">' +
+                 '<div class="info-label">' + label + '</div>' +
+                 '<div class="info-value">' + esc(String(value)) + '</div>' +
+               '</div>';
+      }
+
+      function showGames(dataArray) {
+        if (!dataArray || dataArray.length === 0) { showEmpty(); return; }
+        document.getElementById('result-count').innerHTML =
+          'Se encontraron <span>' + dataArray.length + '</span> juego(s)';
+        var html = '';
+        for (var i = 0; i < dataArray.length; i++) {
+          var f = dataArray[i];
+          // Índices: 0=Nombre,1=Cat,2=JMin,3=JMax,4=Tiempo,5=Precio,
+          //          6=Publicacion,7=Puntuacion,8=Descripcion,9=ImagenURL
+          var imgUrl = String(f[9] || '').trim();
+          html += '<div class="game-card">';
+          if (imgUrl.startsWith('http')) {
+            html += '<img src="' + esc(imgUrl) + '" alt="' + esc(String(f[0])) + '"' +
+                    ' onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' +
+                    '<div class="no-img" style="display:none">🎲</div>';
+          } else {
+            html += '<div class="no-img">🎲</div>';
+          }
+          html += '<div class="game-info">' +
+                    '<h6>' + esc(String(f[0])) + ' <span class="badge-cat">' + esc(String(f[1])) + '</span></h6>' +
+                    '<div class="price-tag">$' + esc(String(f[5])) + '</div>' +
+                    '<small>' +
+                      '👥 ' + esc(String(f[2])) + '–' + esc(String(f[3])) + ' jugadores &nbsp;|&nbsp; ' +
+                      '⏱ ' + esc(String(f[4])) + ' min &nbsp;|&nbsp; ' +
+                      '📅 ' + esc(String(f[6])) + ' &nbsp;|&nbsp; ⭐ ' + esc(String(f[7])) +
+                    '</small><br>' +
+                    '<small class="text-muted">' + esc(String(f[8])) + '</small>' +
+                  '</div></div>';
+        }
+        document.getElementById('search-results').innerHTML = html;
+      }
+
+      function showEmpty() {
+        document.getElementById('result-count').innerHTML = '';
+        document.getElementById('search-results').innerHTML =
+          '<div class="alert alert-secondary">😕 No se encontraron resultados.</div>';
+      }
+
+      function handleError(err) {
+        setLoading(false);
+        document.getElementById('search-results').innerHTML =
+          '<div class="alert alert-danger">❌ Error: ' + (err.message || err) + '</div>';
+      }
+
+      function setLoading(on) {
+        document.getElementById('btn-buscar').disabled = on;
+        document.getElementById('spinner').style.display = on ? 'inline-block' : 'none';
+        if (on) {
+          document.getElementById('result-count').innerHTML = '';
+          document.getElementById('search-results').innerHTML = '';
+        }
+      }
+
+      function setQuery(val) {
+        setLoading(true);
+        google.script.run
+          .withSuccessHandler(handleResponse)
+          .withFailureHandler(handleError)
+          .processForm({ searchtext: val });
+      }
+
+      function esc(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+    </script>
+  </head>
+  <body>
+    <div class="container" style="max-width:860px">
+      <br>
+      <div class="text-center mb-3">
+        <img class="logo-img"
+             src="https://packhelp-landing-assets.s3.eu-central-1.amazonaws.com/wp-content/uploads/2021/05/18171117/Board-game-boxes-e1621351081201.jpeg"
+             alt="Juegos de Mesa">
+        <h4 class="font-weight-bold">Datos de Juegos de Mesa</h4>
+      </div>
+
+      <form id="search-form" class="form-inline justify-content-center mb-2"
+            onsubmit="handleFormSubmit(this)">
+        <div class="form-group mr-2">
+          <input type="text" class="form-control" id="searchtext" name="searchtext"
+                 placeholder='Busca un juego… o prueba $100 o !info' style="width:300px">
+        </div>
+        <button type="submit" id="btn-buscar" class="btn btn-primary">
+          Buscar juego
+          <span id="spinner" class="spinner-border spinner-border-sm ml-1"
+                style="display:none" role="status"></span>
+        </button>
+      </form>
+
+      <div class="text-center mb-3">
+        <span class="chip" onclick="setQuery('$100')">💰 Menos de $100</span>
+        <span class="chip" onclick="setQuery('$50')">💸 Menos de $50</span>
+        <span class="chip" onclick="setQuery('!info')">👤 Mi información</span>
+      </div>
+
+      <div id="result-count"></div>
+      <div id="search-results"></div>
+    </div>
+  </body>
+</html>
